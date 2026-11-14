@@ -38,6 +38,7 @@
 #define __PCA953X_H__
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <esp_err.h>
 #include <driver/gpio.h>
 #include <i2cdev.h>
@@ -71,6 +72,16 @@ typedef enum
 #define PCA953X_I2C_ADDR_PCA9530_A0_HIGH 0x61 //!< PCA9530, `A0` connected to VDD
 #define PCA953X_I2C_ADDR_PCA9533_01      0x62 //!< PCA9533/01
 #define PCA953X_I2C_ADDR_PCA9533_02      0x63 //!< PCA9533/02
+
+/**
+ * @brief Fully lit brightness
+ *
+ * The duty cycle register holds 8 bits, so the pulses run from 0 to 255, and
+ * 256 is the extreme that leaves no low phase at all, which means the output
+ * is steady. The brightness functions accept the whole range, from 0, dark,
+ * to this value, fully lit.
+ */
+#define PCA953X_BRIGHTNESS_MAX 256
 
 /**
  * @brief LED output modes
@@ -260,6 +271,89 @@ esp_err_t pca953x_set_blink_period(pca953x_t *dev, uint8_t rate, uint32_t period
  *         `ESP_ERR_INVALID_ARG` if an argument is invalid
  */
 esp_err_t pca953x_get_blink_period(pca953x_t *dev, uint8_t rate, uint32_t *period_ms);
+
+/**
+ * @brief Set the brightness of a LED
+ *
+ * This is the simple way to light a LED: the brightness goes from 0 to
+ * `PCA953X_BRIGHTNESS_MAX`, that is, from dark to fully lit. The extremes are
+ * absolute and switch the output to the steady modes, so 0 turns the LED off
+ * and 256 turns it on, without any toggling. The values in between are the
+ * duty cycle of the dimming generator, from 1/256 to 255/256 of the period.
+ *
+ * No prescaler and no generator has to be chosen: the driver uses the fast
+ * generator and sets its period to the shortest one, about 6.6 ms or 152 Hz,
+ * which is far above the flicker fusion threshold, so the LED looks steady
+ * rather than blinking.
+ *
+ * The chip has two duty cycle registers for all its outputs, so the outputs
+ * that are dimmed at the same time share the brightness: the last call wins
+ * for all of them. Outputs that are switched on or off steadily do not depend
+ * on the registers and can be used freely.
+ *
+ * @param dev         Pointer to the device descriptor
+ * @param led         LED number, 0..1 for PCA9530, 0..3 for PCA9533
+ * @param brightness  Brightness, 0 to `PCA953X_BRIGHTNESS_MAX`
+ *
+ * @return `ESP_OK` on success
+ *         `ESP_ERR_INVALID_ARG` if an argument is invalid
+ */
+esp_err_t pca953x_set_brightness(pca953x_t *dev, uint8_t led, uint16_t brightness);
+
+/**
+ * @brief Get the brightness of a LED
+ *
+ * A LED that is switched off or on steadily reports 0 or
+ * `PCA953X_BRIGHTNESS_MAX`, a LED that blinks reports the brightness of the
+ * pulses.
+ *
+ * @param dev             Pointer to the device descriptor
+ * @param led             LED number, 0..1 for PCA9530, 0..3 for PCA9533
+ * @param[out] brightness Brightness, 0 to `PCA953X_BRIGHTNESS_MAX`
+ *
+ * @return `ESP_OK` on success
+ *         `ESP_ERR_INVALID_ARG` if an argument is invalid
+ */
+esp_err_t pca953x_get_brightness(pca953x_t *dev, uint8_t led, uint16_t *brightness);
+
+/**
+ * @brief Blink a LED
+ *
+ * The function sets the period and the brightness of the pulses and switches
+ * the LED to the slow generator, so one call is enough. The period is rounded
+ * up to the closest value the prescaler can produce, between 7 ms and
+ * 1684 ms.
+ *
+ * The brightness follows the same scale as pca953x_set_brightness(): 0 turns
+ * the LED off and `PCA953X_BRIGHTNESS_MAX` turns it on steadily, because a
+ * pulse that never goes low is not a pulse. The values in between blink.
+ *
+ * As with pca953x_set_brightness(), the blinking outputs share one period and
+ * one brightness, because the chip has a single slow generator.
+ *
+ * @param dev         Pointer to the device descriptor
+ * @param led         LED number, 0..1 for PCA9530, 0..3 for PCA9533
+ * @param period_ms   Period of the blinking, 7 to 1684 ms
+ * @param brightness  Brightness of the pulses, 0 to `PCA953X_BRIGHTNESS_MAX`
+ *
+ * @return `ESP_OK` on success
+ *         `ESP_ERR_INVALID_ARG` if an argument is invalid
+ */
+esp_err_t pca953x_blink(pca953x_t *dev, uint8_t led, uint32_t period_ms, uint16_t brightness);
+
+/**
+ * @brief Get the period and the brightness of a blinking LED
+ *
+ * @param dev              Pointer to the device descriptor
+ * @param led              LED number, 0..1 for PCA9530, 0..3 for PCA9533
+ * @param[out] period_ms   Period of the blinking, milliseconds
+ * @param[out] brightness  Brightness of the pulses, 0 to `PCA953X_BRIGHTNESS_MAX`
+ *
+ * @return `ESP_OK` on success
+ *         `ESP_ERR_INVALID_STATE` if the LED is not blinking
+ *         `ESP_ERR_INVALID_ARG` if an argument is invalid
+ */
+esp_err_t pca953x_get_blink(pca953x_t *dev, uint8_t led, uint32_t *period_ms, uint16_t *brightness);
 
 /**
  * @brief Read the state of all LED pins

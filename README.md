@@ -38,17 +38,28 @@ Every output is controlled by two bits of the LED selector register:
 
 The two PWM generators are shared: every output that selects PWM0 blinks with the same period and the same duty cycle, and the same holds for PWM1. The period is `(prescaler + 1) / 152` seconds, so it is between 6.6 ms (152 Hz) and 1.684 s, and the duty cycle is `PWM / 256`. A period short enough, above roughly 100 Hz, makes the LED look dimmed rather than blinking; a long period makes it blink.
 
-The driver wraps the registers:
+## Using the driver
+
+For the everyday use there is a small set of functions:
+
+* `pca953x_set_brightness()` turns a LED on, dims it or turns it off, the brightness goes from 0, dark, to `PCA953X_BRIGHTNESS_MAX`, fully lit; the two extremes switch the output to the steady modes, so the LED does not toggle at all;
+* `pca953x_get_brightness()` reports that value back, whichever way the LED is driven;
+* `pca953x_blink()` lights a LED in pulses and takes the period in milliseconds and the brightness of the pulses on the same scale, where the extremes mean off and steady on;
+* `pca953x_get_blink()` reports the period and the brightness of a blinking LED.
+
+The dimming runs at the shortest period the chip can produce, about 6.6 ms or 152 Hz, so a dimmed LED looks steady rather than blinking, and the prescaler is not something the caller has to think about. The chip generates the pulses with two generators for all of its outputs, so the dimmed outputs share one brightness and the blinking outputs share one period and one brightness: the last call wins for every output that uses the same generator. Outputs that are switched on or off steadily do not depend on the generators and can be used freely.
+
+The registers are still reachable where the simple functions are not enough:
 
 * `pca953x_set_mode()` and `pca953x_get_mode()` select the source of one output;
-* `pca953x_set_pwm()` and `pca953x_get_pwm()` set and read the duty cycle of a rate;
-* `pca953x_set_prescaler()` and `pca953x_get_prescaler()` set and read the prescaler of a rate;
+* `pca953x_set_pwm()` and `pca953x_get_pwm()` set and read the duty cycle of a generator in register units;
+* `pca953x_set_prescaler()` and `pca953x_get_prescaler()` set and read the prescaler of a generator;
 * `pca953x_set_blink_period()` and `pca953x_get_blink_period()` work with the period in milliseconds and round it up to the closest value the prescaler can produce;
 * `pca953x_get_inputs()` and `pca953x_get_input()` read the state of the pins, which is what a pin configured as `PCA953X_MODE_OFF` is for.
 
 ## Example
 
-The [default](examples/default) example dims the first output, blinks the second one and reads the pin levels back.
+The [default](examples/default) example sweeps the first output from dark to full brightness and back, blinks the second one at half brightness and reads the pin levels back.
 
 ## Installation
 

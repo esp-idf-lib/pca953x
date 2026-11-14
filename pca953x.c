@@ -56,6 +56,9 @@
 #define BLINK_MIN_PERIOD_MS 7
 #define BLINK_MAX_PERIOD_MS 1684
 
+#define DIM_RATE    0
+#define BLINK_RATE  1
+
 #define CHECK(x) do { esp_err_t __; if ((__ = x) != ESP_OK) return __; } while (0)
 #define CHECK_ARG(VAL) do { if (!(VAL)) return ESP_ERR_INVALID_ARG; } while (0)
 
@@ -213,6 +216,93 @@ esp_err_t pca953x_get_blink_period(pca953x_t *dev, uint8_t rate, uint32_t *perio
     *period_ms = ((uint32_t)psc + 1) * 1000 / BLINK_BASE_HZ;
 
     return ESP_OK;
+}
+
+esp_err_t pca953x_set_brightness(pca953x_t *dev, uint8_t led, uint16_t brightness)
+{
+    CHECK_ARG(dev && led_valid(dev, led) && brightness <= PCA953X_BRIGHTNESS_MAX);
+
+    // The extremes are served by the steady modes: a dark output is released
+    // and a fully lit one does not toggle at all, which is what the caller
+    // asks for and what pca953x_get_brightness() reports back
+    if (!brightness)
+        return pca953x_set_mode(dev, led, PCA953X_MODE_OFF);
+
+    if (brightness == PCA953X_BRIGHTNESS_MAX)
+        return pca953x_set_mode(dev, led, PCA953X_MODE_ON);
+
+    // The fastest period of the dimming generator is 6.6 ms, about 152 Hz,
+    // which is far above the flicker fusion threshold, so the LED looks
+    // steady. The prescaler is written every time, because the register may
+    // have been changed through the low-level API and a long period would
+    // turn the dimming into blinking.
+    CHECK(pca953x_set_prescaler(dev, DIM_RATE, 0));
+
+    // The duty cycle is written before the output is switched to the
+    // generator, so the LED does not flash with the previous value
+    CHECK(pca953x_set_pwm(dev, DIM_RATE, (uint8_t)brightness));
+
+    return pca953x_set_mode(dev, led, PCA953X_MODE_PWM0);
+}
+
+esp_err_t pca953x_get_brightness(pca953x_t *dev, uint8_t led, uint16_t *brightness)
+{
+    CHECK_ARG(dev && led_valid(dev, led) && brightness);
+
+    pca953x_mode_t mode;
+    CHECK(pca953x_get_mode(dev, led, &mode));
+
+    if (mode == PCA953X_MODE_OFF)
+    {
+        *brightness = 0;
+        return ESP_OK;
+    }
+
+    if (mode == PCA953X_MODE_ON)
+    {
+        *brightness = PCA953X_BRIGHTNESS_MAX;
+        return ESP_OK;
+    }
+
+    uint8_t pwm;
+    CHECK(pca953x_get_pwm(dev, mode - PCA953X_MODE_PWM0, &pwm));
+    *brightness = pwm;
+
+    return ESP_OK;
+}
+
+esp_err_t pca953x_blink(pca953x_t *dev, uint8_t led, uint32_t period_ms, uint16_t brightness)
+{
+    CHECK_ARG(dev && led_valid(dev, led) && brightness <= PCA953X_BRIGHTNESS_MAX);
+
+    // A pulse of 100 % has no low phase left, so the LED stops blinking and
+    // stays lit; the same holds for a dark pulse and a dark LED
+    if (!brightness)
+        return pca953x_set_mode(dev, led, PCA953X_MODE_OFF);
+
+    if (brightness == PCA953X_BRIGHTNESS_MAX)
+        return pca953x_set_mode(dev, led, PCA953X_MODE_ON);
+
+    CHECK(pca953x_set_pwm(dev, BLINK_RATE, (uint8_t)brightness));
+    CHECK(pca953x_set_blink_period(dev, BLINK_RATE, period_ms));
+
+    return pca953x_set_mode(dev, led, PCA953X_MODE_PWM1);
+}
+
+esp_err_t pca953x_get_blink(pca953x_t *dev, uint8_t led, uint32_t *period_ms, uint16_t *brightness)
+{
+    CHECK_ARG(dev && led_valid(dev, led) && period_ms && brightness);
+
+    pca953x_mode_t mode;
+    CHECK(pca953x_get_mode(dev, led, &mode));
+    if (mode != PCA953X_MODE_PWM1)
+        return ESP_ERR_INVALID_STATE;
+
+    uint8_t pwm;
+    CHECK(pca953x_get_pwm(dev, BLINK_RATE, &pwm));
+    *brightness = pwm;
+
+    return pca953x_get_blink_period(dev, BLINK_RATE, period_ms);
 }
 
 esp_err_t pca953x_get_inputs(pca953x_t *dev, uint8_t *levels)

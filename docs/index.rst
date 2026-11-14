@@ -23,7 +23,25 @@ The two PWM generators are shared by all outputs. The period is
 cycle is ``PWM / 256``. A short period, above roughly 100 Hz, makes the LED
 look dimmed; a long period makes it blink.
 
-The driver provides access to the modes, the duty cycles, the prescalers and
-the pin levels, see the reference below.
+Everyday use needs four functions. ``pca953x_set_brightness()`` turns a LED
+on, dims it or turns it off, the brightness going from 0, dark, to
+``PCA953X_BRIGHTNESS_MAX``, fully lit, and the two extremes switch the output
+to the steady modes, so the LED does not toggle at all;
+``pca953x_get_brightness()`` reports that value back;
+``pca953x_blink()`` lights a LED in pulses with a period in milliseconds and a
+brightness on the same scale, and ``pca953x_get_blink()`` reports both.
+
+The dimming runs at the shortest period the chip can produce, about 6.6 ms
+or 152 Hz, which is far above the flicker fusion threshold, so a dimmed LED
+looks steady rather than blinking. The two generators belong to the chip, not
+to the outputs, so all dimmed
+outputs share one brightness and all blinking outputs share one period and one
+brightness, the last call winning for every output that uses the same
+generator. Outputs that are switched on or off steadily do not depend on the
+generators.
+
+The registers remain available for the cases the simple functions do not
+cover: the modes, the duty cycles, the prescalers and the pin levels belong to
+the reference below.
 
  .. doxygenfile:: pca953x.h

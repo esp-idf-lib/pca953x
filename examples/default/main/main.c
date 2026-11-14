@@ -38,17 +38,9 @@ void test(void *pvParameters)
     ESP_ERROR_CHECK(pca953x_init_desc(&dev, DEVICE_TYPE, CONFIG_EXAMPLE_I2C_ADDR, 0,
                                       CONFIG_EXAMPLE_I2C_MASTER_SDA, CONFIG_EXAMPLE_I2C_MASTER_SCL));
 
-    // Rate 0: a short period, about 152 Hz, so the output looks dimmed
-    // instead of blinking. Rate 1: half a second period, so the output blinks.
-    ESP_ERROR_CHECK(pca953x_set_blink_period(&dev, 0, 7));
-    ESP_ERROR_CHECK(pca953x_set_pwm(&dev, 0, 64));  // 25% duty cycle
-
-    ESP_ERROR_CHECK(pca953x_set_blink_period(&dev, 1, 500));
-    ESP_ERROR_CHECK(pca953x_set_pwm(&dev, 1, 128)); // 50% duty cycle
-
-    // The first output is dimmed, the second one blinks
-    ESP_ERROR_CHECK(pca953x_set_mode(&dev, 0, PCA953X_MODE_PWM0));
-    ESP_ERROR_CHECK(pca953x_set_mode(&dev, 1, PCA953X_MODE_PWM1));
+    // The first output is dimmed, the second one blinks at half brightness
+    ESP_ERROR_CHECK(pca953x_set_brightness(&dev, 0, 64));
+    ESP_ERROR_CHECK(pca953x_blink(&dev, 1, 500, 128));
 
     // The remaining outputs of the PCA9533 are driven steady
     if (LEDS_COUNT > 2)
@@ -57,8 +49,16 @@ void test(void *pvParameters)
         ESP_ERROR_CHECK(pca953x_set_mode(&dev, 3, PCA953X_MODE_OFF));
     }
 
+    static const uint16_t LEVELS[] = { 0, 64, 128, 192, PCA953X_BRIGHTNESS_MAX };
+    const size_t LEVELS_COUNT = sizeof(LEVELS) / sizeof(LEVELS[0]);
+    size_t level = 0;
+
     while (1)
     {
+        // Sweep the first output from dark to full brightness and back
+        ESP_ERROR_CHECK(pca953x_set_brightness(&dev, 0, LEVELS[level]));
+        level = (level + 1) % LEVELS_COUNT;
+
         uint8_t levels = 0;
         esp_err_t res = pca953x_get_inputs(&dev, &levels);
         if (res != ESP_OK)
@@ -71,9 +71,13 @@ void test(void *pvParameters)
         for (uint8_t led = 0; led < LEDS_COUNT; led++)
         {
             pca953x_mode_t mode;
+            uint16_t brightness = 0;
             bool level = false;
-            if (pca953x_get_mode(&dev, led, &mode) == ESP_OK && pca953x_get_input(&dev, led, &level) == ESP_OK)
-                ESP_LOGI(TAG, "LED%u: %s, pin is %s", led, mode_name(mode), level ? "high" : "low");
+            if (pca953x_get_mode(&dev, led, &mode) == ESP_OK
+                    && pca953x_get_brightness(&dev, led, &brightness) == ESP_OK
+                    && pca953x_get_input(&dev, led, &level) == ESP_OK)
+                ESP_LOGI(TAG, "LED%u: %s, brightness %u, pin is %s", led, mode_name(mode),
+                         (unsigned)brightness, level ? "high" : "low");
         }
 
         vTaskDelay(pdMS_TO_TICKS(2000));
