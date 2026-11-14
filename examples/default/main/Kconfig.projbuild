@@ -1,0 +1,34 @@
+menu "Example configuration"
+
+    choice EXAMPLE_TYPE
+        prompt "Device type"
+        default EXAMPLE_TYPE_PCA9530
+        help
+            Select the LED dimmer the example runs on.
+
+        config EXAMPLE_TYPE_PCA9530
+            bool "PCA9530 (2 LED outputs)"
+
+        config EXAMPLE_TYPE_PCA9533
+            bool "PCA9533 (4 LED outputs)"
+    endchoice
+
+    config EXAMPLE_I2C_ADDR
+        hex "I2C address of the device"
+        default 0x60
+        help
+            I2C address of the device.
+
+            The driver uses 7-bit addresses. The datasheets show 8-bit write
+            addresses, which are twice as large.
+
+            PCA9530 has one address pin (`A0`): `0x60` (`0xC0` in the
+            datasheet) when the pin is grounded, which is the default here, and
+            `0x61` (`0xC2`) when it is connected to VDD.
+
+            PCA9533/01 has the fixed address `0x62` (`0xC4`), PCA9533/02 has
+            `0x63` (`0xC6`).
+
+    rsource "../../../Kconfig.i2c"
+
+endmenu
