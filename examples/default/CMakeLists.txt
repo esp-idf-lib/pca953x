@@ -4,4 +4,4 @@ cmake_minimum_required(VERSION 3.5)
 
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(example-pcf8575)
+project(example-pca953x)
