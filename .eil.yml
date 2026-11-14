@@ -1,0 +1,16 @@
+---
+name: pca953x
+description: Driver for PCA9530/PCA9533 I2C-bus LED dimmers
+version: 1.0.0
+groups:
+  - gpio
+code_owners: UncleRus
+depends:
+  - i2cdev
+  - log
+  - esp_idf_lib_helpers
+thread_safe: yes
+license: BSD-3-Clause
+copyrights:
+  - name: UncleRus
+    year: 2026

@@ -1,0 +1,19 @@
+---
+version: 1.0.0
+description: Driver for PCA9530/PCA9533 I2C-bus LED dimmers
+license: BSD-3-Clause
+dependencies:
+  esp-idf-lib/i2cdev:
+    version: "*"
+  esp-idf-lib/esp_idf_lib_helpers:
+    version: "*"
+url: https://github.com/esp-idf-lib/core
+repository: https://github.com/esp-idf-lib/pca953x
+documentation: https://esp-idf-lib.github.io/pca953x/
+issues: https://github.com/esp-idf-lib/pca953x/issues
+discussion: https://github.com/esp-idf-lib/core/discussions
+files:
+  exclude:
+    - docs/**/*
+maintainers:
+  - Ruslan V. Uss (@UncleRus) <unclerus@gmail.com>
